@@ -1,0 +1,214 @@
+import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
+import 'package:flutter_webview_plugin/flutter_webview_plugin.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+class SpotifyLoginButton extends StatefulWidget {
+  @override
+  _SpotifyLoginButtonState createState() => _SpotifyLoginButtonState();
+}
+
+class _SpotifyLoginButtonState extends State<SpotifyLoginButton> {
+  final String clientId = "0ea2d1861e09419587f9e653805c6ada";
+  final String redirectUri = "https://matchr-production.up.railway.app/callback/";
+  final String scopes =
+      "user-read-private,user-read-playback-state,user-top-read,user-read-email,%20user-read-recently-played";
+  final flutterWebviewPlugin = new FlutterWebviewPlugin();
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    flutterWebviewPlugin.onUrlChanged.listen((String url) async {
+      if (url.startsWith(redirectUri)) {
+        String code = _extractCodeFromUrl(url);
+        print(code);
+
+        Map<String, String> tokens = await _exchangeCodeForToken(code);
+        String accessToken = tokens['access_token']!;
+        String refreshToken = tokens['refresh_token']!;
+        print("Here is my access token: $accessToken");
+        print("Here is my refresh token: $refreshToken");
+
+        await _fetchJSONResponse(accessToken);
+
+        Navigator.pushReplacementNamed(context, '/boarding');
+      }
+    });
+  }
+
+  String _extractCodeFromUrl(String url) {
+    Uri uri = Uri.parse(url);
+    return uri.queryParameters['code'] ?? '';
+  }
+
+  Future<Map<String, String>> _exchangeCodeForToken(String code) async {
+    final tokenEndpoint = 'https://accounts.spotify.com/api/token';
+
+    final body = {
+      'client_id': clientId,
+      'grant_type': 'authorization_code',
+      'code': code,
+      'redirect_uri': redirectUri,
+    };
+
+    final response = await http.post(Uri.parse(tokenEndpoint), body: body);
+
+    if (response.statusCode == 200) {
+      final jsonData = jsonDecode(response.body);
+      final accessToken = jsonData['access_token'];
+      final refreshToken = jsonData['refresh_token'];
+
+      print('Access Token: $accessToken');
+      print('Refresh Token: $refreshToken');
+
+      return {'access_token': accessToken, 'refresh_token': refreshToken};
+    } else {
+      print('Failed to exchange code for token. Status code: ${response.statusCode}');
+      return {};
+    }
+  }
+
+  Future<void> _fetchJSONResponse(String accessToken) async {
+    final response = await http.get(
+      Uri.parse('https://matchr-production.up.railway.app/callback/'),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      print(response.statusCode);
+      final jsonData = jsonDecode(response.body);
+      final accessToken = jsonData['Access_token'];
+      final refreshToken = jsonData['refresh_token'];
+
+      print('Access Token: $accessToken');
+      print('Refresh Token: $refreshToken');
+
+      await _refreshAccessToken(refreshToken);
+    } else {
+      print('Failed to fetch JSON response. Status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+    }
+  }
+
+  Future<void> _refreshAccessToken(String refreshToken) async {
+    final tokenEndpoint = 'https://accounts.spotify.com/api/token';
+
+    final body = {
+      'client_id': clientId,
+      'grant_type': 'refresh_token',
+      'refresh_token': refreshToken,
+    };
+
+    final response = await http.post(Uri.parse(tokenEndpoint), body: body);
+
+    if (response.statusCode == 200) {
+      final jsonData = jsonDecode(response.body);
+      final newAccessToken = jsonData['access_token'];
+
+      print('New Access Token: $newAccessToken');
+    } else {
+      print('Failed to refresh access token. Status code: ${response.statusCode}');
+    }
+  }
+
+  Future<void> _launchSpotifyLogin(BuildContext context) async {
+    setState(() {
+      isLoading = true;
+    });
+
+    String url =
+        "https://accounts.spotify.com/authorize?client_id=$clientId&redirect_uri=$redirectUri&response_type=code&scope=$scopes";
+
+    if (await canLaunch(url)) {
+      flutterWebviewPlugin.launch(
+        url,
+        clearCookies: true,
+      );
+    } else {
+      throw 'Could not launch $url';
+    }
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    flutterWebviewPlugin.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Padding(
+        padding: const EdgeInsets.only(left: 95, right: 95),
+        child: Center(
+          child: isLoading
+              ? Center(child: CircularProgressIndicator())
+              : ElevatedButton(
+            onPressed: () => _launchSpotifyLogin(context),
+            child: Row(
+              children: [
+                Icon(FontAwesomeIcons.spotify),
+                SizedBox(
+                  width: 15,
+                ),
+                Text(
+                  'Login with Spotify',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+void main() {
+  runApp(MaterialApp(
+    theme: ThemeData.dark().copyWith(
+      scaffoldBackgroundColor: Colors.black,
+    ),
+    home: Scaffold(
+      appBar: AppBar(
+        title: Text('Spotify Login Demo'),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/images/spo.jpeg'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Center(
+          child: SpotifyLoginButton(),
+        ),
+      ),
+    ),
+    routes: {
+      '/boarding': (context) => BoardingPage(),
+    },
+  ));
+}
+
+class BoardingPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Boarding Page'),
+      ),
+      body: Center(
+        child: Text('Welcome to the boarding page!'),
+      ),
+    );
+  }
+}
+
