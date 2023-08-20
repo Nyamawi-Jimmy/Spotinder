@@ -49,9 +49,7 @@ dependencies:
   url_launcher: ^6.1.11
   uni_links: ^0.5.1
   flutter_inappwebview: ^5.7.2+3
-  flutter_webview_plugin: ^0.4.0
   flutter_svg: ^2.0.5
-  emoji_picker_2: ^0.4.0
   camera: ^0.10.5+2
   path_provider: ^2.0.15
   path: ^1.8.2
@@ -62,6 +60,7 @@ dependencies:
   webview_flutter: ^4.2.2
   fluttertoast: ^8.2.2
   flutter_secure_storage: ^8.0.0
+  flutter_webview_plugin: ^0.4.0
 
 dev_dependencies:
   flutter_test:
